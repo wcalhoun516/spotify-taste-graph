@@ -1,5 +1,7 @@
 """Spotify Taste Graph — FastAPI backend with OAuth, data pipeline, and graph analytics."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -8,6 +10,7 @@ import webbrowser
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Thread
+from typing import Optional
 
 import networkx as nx
 import requests
@@ -90,7 +93,7 @@ def api_get(endpoint: str, params: dict | None = None, retries: int = 1) -> dict
 # Data pipeline
 # ---------------------------------------------------------------------------
 
-def fetch_recently_played() -> list[dict]:
+def fetch_recently_played() -> list:
     """Paginate through recently played tracks (max ~50 per request, API limit)."""
     items = []
     params = {"limit": 50}
@@ -107,7 +110,7 @@ def fetch_recently_played() -> list[dict]:
     return items
 
 
-def fetch_top_artists(time_range: str) -> list[dict]:
+def fetch_top_artists(time_range: str) -> list:
     """Fetch top artists for a given time range."""
     items = []
     for offset in range(0, 100, 50):
@@ -119,13 +122,13 @@ def fetch_top_artists(time_range: str) -> list[dict]:
     return items
 
 
-def fetch_top_tracks_for_artist(artist_id: str) -> list[dict]:
+def fetch_top_tracks_for_artist(artist_id: str) -> list:
     """Fetch an artist's top tracks."""
     data = api_get(f"artists/{artist_id}/top-tracks", {"market": "US"})
     return data.get("tracks", [])
 
 
-def fetch_audio_features(track_ids: list[str]) -> list[dict]:
+def fetch_audio_features(track_ids: list) -> list:
     """Fetch audio features for up to 100 tracks at a time."""
     features = []
     for i in range(0, len(track_ids), 100):
@@ -138,8 +141,8 @@ def fetch_audio_features(track_ids: list[str]) -> list[dict]:
 
 def build_artist_data() -> dict:
     """Collect all artist data across time ranges + audio features."""
-    all_artists: dict[str, dict] = {}  # id -> artist data
-    time_range_lists: dict[str, list[str]] = {}  # time_range -> [artist_ids]
+    all_artists = {}  # id -> artist data
+    time_range_lists = {}  # time_range -> [artist_ids]
 
     for tr in ("short_term", "medium_term", "long_term"):
         artists = fetch_top_artists(tr)
@@ -197,7 +200,7 @@ def build_co_occurrence_graph(recently_played: list[dict], artists: dict) -> dic
     plays.sort(key=lambda x: x[1])
 
     # Build edges: artists within 45 minutes of each other
-    edges: dict[tuple, int] = {}
+    edges = {}
     for i in range(len(plays)):
         for j in range(i + 1, len(plays)):
             t1 = datetime.fromisoformat(plays[i][1].replace("Z", "+00:00"))
@@ -211,7 +214,7 @@ def build_co_occurrence_graph(recently_played: list[dict], artists: dict) -> dic
                 edges[key] = edges.get(key, 0) + 1
 
     # Estimate listening time per artist (count * ~3.5 min avg track)
-    artist_play_counts: dict[str, int] = {}
+    artist_play_counts = {}
     for item in recently_played:
         track = item.get("track", {})
         duration_ms = track.get("duration_ms", 210000)
@@ -277,7 +280,7 @@ def run_graph_analytics(artists: dict, edges: list[dict], play_time: dict) -> di
         avg_path = 0
 
     # Cluster audio feature averages (mood fingerprint)
-    clusters: dict[int, list[str]] = {}
+    clusters = {}
     for aid, cid in partition.items():
         clusters.setdefault(cid, []).append(aid)
 
