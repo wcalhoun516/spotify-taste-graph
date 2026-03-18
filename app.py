@@ -122,25 +122,98 @@ def fetch_top_artists(time_range: str) -> list:
     return items
 
 
-def fetch_top_tracks_for_artist(artist_id: str) -> list:
-    """Fetch an artist's top tracks."""
-    data = api_get(f"artists/{artist_id}/top-tracks", {"market": "US"})
-    return data.get("tracks", [])
+def estimate_audio_features_from_genres(genres: list, popularity: int) -> dict:
+    """Estimate audio features from genre tags (workaround for restricted API endpoints).
 
+    This provides approximate mood positioning when audio-features/top-tracks APIs
+    are unavailable (Spotify restricted these for new apps in 2024).
+    """
+    import random
+    random.seed(hash(tuple(genres)) if genres else 0)
 
-def fetch_audio_features(track_ids: list) -> list:
-    """Fetch audio features for up to 100 tracks at a time."""
-    features = []
-    for i in range(0, len(track_ids), 100):
-        chunk = track_ids[i:i+100]
-        data = api_get("audio-features", {"ids": ",".join(chunk)})
-        batch = data.get("audio_features", [])
-        features.extend([f for f in batch if f])
-    return features
+    # Base values
+    energy = 0.5
+    valence = 0.5
+    danceability = 0.5
+    acousticness = 0.3
+    instrumentalness = 0.1
+    speechiness = 0.1
+
+    genre_str = " ".join(g.lower() for g in genres)
+
+    # Energy modifiers
+    if any(w in genre_str for w in ["metal", "punk", "hardcore", "industrial", "death"]):
+        energy += 0.3
+    elif any(w in genre_str for w in ["edm", "house", "techno", "bass", "drum and bass", "dubstep", "rave"]):
+        energy += 0.25
+    elif any(w in genre_str for w in ["rock", "garage", "grunge"]):
+        energy += 0.15
+    elif any(w in genre_str for w in ["ambient", "chill", "lo-fi", "lofi", "sleep", "meditation"]):
+        energy -= 0.25
+    elif any(w in genre_str for w in ["acoustic", "folk", "singer-songwriter", "bossa"]):
+        energy -= 0.15
+
+    # Valence modifiers
+    if any(w in genre_str for w in ["happy", "pop", "dance pop", "bubblegum", "sunshine"]):
+        valence += 0.2
+    elif any(w in genre_str for w in ["party", "reggaeton", "latin", "tropical", "funk", "disco", "swing"]):
+        valence += 0.15
+    elif any(w in genre_str for w in ["emo", "sad", "doom", "dark", "goth", "melanchol"]):
+        valence -= 0.2
+    elif any(w in genre_str for w in ["blues", "soul", "r&b"]):
+        valence -= 0.05
+
+    # Danceability
+    if any(w in genre_str for w in ["dance", "house", "techno", "edm", "disco", "reggaeton", "funk", "bass"]):
+        danceability += 0.25
+    elif any(w in genre_str for w in ["hip hop", "rap", "trap", "bounce"]):
+        danceability += 0.15
+    elif any(w in genre_str for w in ["ambient", "classical", "meditation"]):
+        danceability -= 0.2
+
+    # Acousticness
+    if any(w in genre_str for w in ["acoustic", "folk", "unplugged", "singer-songwriter", "classical"]):
+        acousticness += 0.35
+    elif any(w in genre_str for w in ["jazz", "bossa", "blues", "country", "swing"]):
+        acousticness += 0.2
+    elif any(w in genre_str for w in ["electronic", "edm", "synth", "techno", "house"]):
+        acousticness -= 0.15
+
+    # Instrumentalness
+    if any(w in genre_str for w in ["instrumental", "post-rock", "ambient", "classical", "jazz"]):
+        instrumentalness += 0.3
+    elif any(w in genre_str for w in ["edm", "techno", "house", "trance"]):
+        instrumentalness += 0.15
+
+    # Speechiness
+    if any(w in genre_str for w in ["hip hop", "rap", "spoken word"]):
+        speechiness += 0.25
+    elif any(w in genre_str for w in ["comedy", "podcast"]):
+        speechiness += 0.3
+
+    # Popularity adds slight energy/valence boost
+    pop_factor = popularity / 100.0
+    energy += pop_factor * 0.05
+    valence += pop_factor * 0.05
+
+    # Add slight randomness for variety
+    jitter = lambda: random.uniform(-0.05, 0.05)
+
+    def clamp(v):
+        return round(max(0.01, min(0.99, v + jitter())), 4)
+
+    return {
+        "energy": clamp(energy),
+        "valence": clamp(valence),
+        "danceability": clamp(danceability),
+        "acousticness": clamp(acousticness),
+        "instrumentalness": clamp(instrumentalness),
+        "speechiness": clamp(speechiness),
+    }
 
 
 def build_artist_data() -> dict:
-    """Collect all artist data across time ranges + audio features."""
+    """Collect all artist data across time ranges + estimated audio features."""
     all_artists = {}  # id -> artist data
     time_range_lists = {}  # time_range -> [artist_ids]
 
@@ -151,42 +224,25 @@ def build_artist_data() -> dict:
             aid = a["id"]
             time_range_lists[tr].append(aid)
             if aid not in all_artists:
+                genres = a.get("genres", [])
+                pop = a.get("popularity", 50)
                 all_artists[aid] = {
                     "id": aid,
                     "name": a["name"],
-                    "genres": a.get("genres", []),
+                    "genres": genres,
                     "image": a["images"][0]["url"] if a.get("images") else "",
-                    "popularity": a.get("popularity", 0),
+                    "popularity": pop,
                     "followers": a.get("followers", {}).get("total", 0),
-                    "audio_features": {},
+                    "audio_features": estimate_audio_features_from_genres(genres, pop),
                     "time_ranges": [],
                 }
             all_artists[aid]["time_ranges"].append(tr)
 
-    # Fetch audio features for each artist via their top tracks
-    print(f"  Fetching audio features for {len(all_artists)} artists...")
-    for aid, adata in all_artists.items():
-        try:
-            tracks = fetch_top_tracks_for_artist(aid)
-            tids = [t["id"] for t in tracks[:10]]
-            if tids:
-                feats = fetch_audio_features(tids)
-                if feats:
-                    avg = {}
-                    keys = ["energy", "valence", "danceability", "acousticness",
-                            "instrumentalness", "speechiness", "tempo"]
-                    for k in keys:
-                        vals = [f[k] for f in feats if k in f]
-                        avg[k] = round(sum(vals) / len(vals), 4) if vals else 0
-                    adata["audio_features"] = avg
-        except Exception as e:
-            print(f"  Warning: couldn't fetch features for {adata['name']}: {e}")
-        time.sleep(0.05)  # gentle rate limiting
-
+    print(f"  Estimated audio features for {len(all_artists)} artists from genres")
     return {"artists": all_artists, "time_ranges": time_range_lists}
 
 
-def build_co_occurrence_graph(recently_played: list[dict], artists: dict) -> dict:
+def build_co_occurrence_graph(recently_played: list, artists: dict) -> dict:
     """Build co-occurrence edges from listening sessions."""
     # Extract (artist_id, played_at) pairs
     plays = []
@@ -229,7 +285,7 @@ def build_co_occurrence_graph(recently_played: list[dict], artists: dict) -> dic
     return {"edges": edge_list, "play_time": node_play_time}
 
 
-def run_graph_analytics(artists: dict, edges: list[dict], play_time: dict) -> dict:
+def run_graph_analytics(artists: dict, edges: list, play_time: dict) -> dict:
     """Run networkx analytics on the graph."""
     G = nx.Graph()
 
