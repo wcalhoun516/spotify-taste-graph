@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify Taste Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="tab-nav">
+    <div class="nav-brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#1DB954"><circle cx="12" cy="12" r="12"/><path d="M16.5 15.5c-.2 0-.3-.1-.5-.2-2.1-1.3-4.8-1.5-7.9-.8-.3.1-.5-.1-.6-.4-.1-.3.1-.5.4-.6 3.4-.8 6.4-.5 8.7 1 .3.2.3.5.2.7-.1.2-.2.3-.3.3zm1.3-2.7c-.2 0-.4-.1-.5-.2-2.4-1.5-6.1-1.9-8.9-1-.3.1-.6-.1-.7-.4-.1-.3.1-.6.4-.7 3.2-1 7.2-.5 9.9 1.2.3.2.4.5.2.8-.2.2-.3.3-.4.3zm.1-2.8c-2.9-1.7-7.6-1.9-10.3-1-.3.1-.7-.1-.8-.4-.1-.3.1-.7.5-.8 3.2-1 8.4-.8 11.7 1.2.3.2.4.6.2.9-.2.2-.5.3-.7.3-.2 0-.4-.1-.6-.2z" fill="#0d0d0d"/></svg>
+      <span>Taste Graph</span>
+    </div>
+    <div class="nav-tabs">
+      <button class="tab active" data-tab="graph">Force Graph</button>
+      <button class="tab" data-tab="timeline">Timeline</button>
+      <button class="tab" data-tab="mood">Mood Map</button>
+      <button class="tab" data-tab="dna">Taste DNA</button>
+    </div>
+  </nav>
+
+  <div id="main-container">
+    <div id="sidebar">
+      <h3>Stats</h3>
+      <div id="stats-content">
+        <div class="stat-group">
+          <div class="stat-label">Top 5 Artists</div>
+          <ol id="stat-top5"></ol>
+        </div>
+        <div class="stat-group">
+          <div class="stat-label">Genre Clusters</div>
+          <div id="stat-clusters" class="stat-value">—</div>
+        </div>
+        <div class="stat-group">
+          <div class="stat-label">Bridge Artist</div>
+          <div id="stat-bridge" class="stat-value">—</div>
+        </div>
+        <div class="stat-group">
+          <div class="stat-label">Taste Diversity</div>
+          <div id="stat-diversity" class="stat-value">—</div>
+        </div>
+        <div class="stat-group">
+          <div class="stat-label">Last Updated</div>
+          <div id="stat-updated" class="stat-value">—</div>
+        </div>
+        <button id="refresh-btn" onclick="triggerRefresh()">Refresh Now</button>
+      </div>
+      <div id="artist-card" class="hidden">
+        <button class="close-card" onclick="closeArtistCard()">&times;</button>
+        <img id="card-image" src="" alt="">
+        <h4 id="card-name"></h4>
+        <div id="card-genres" class="card-genres"></div>
+        <div id="card-stats"></div>
+        <canvas id="card-radar" width="200" height="200"></canvas>
+      </div>
+    </div>
+
+    <div id="view-container">
+      <!-- Graph view -->
+      <div id="view-graph" class="view active">
+        <div id="graph-controls">
+          <div class="control-group">
+            <label>Time Range</label>
+            <select id="time-range-select">
+              <option value="all">All</option>
+              <option value="short_term">Short Term (4 weeks)</option>
+              <option value="medium_term">Medium Term (6 months)</option>
+              <option value="long_term">Long Term (all time)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label>Min Edge Weight</label>
+            <input type="range" id="edge-slider" min="1" max="10" value="1">
+            <span id="edge-slider-val">1</span>
+          </div>
+          <div class="control-group">
+            <label>
+              <input type="checkbox" id="isolate-cluster"> Isolate Cluster
+            </label>
+          </div>
+        </div>
+        <svg id="graph-svg"></svg>
+        <div id="tooltip" class="hidden"></div>
+      </div>
+
+      <!-- Timeline view -->
+      <div id="view-timeline" class="view">
+        <h2>Listening Timeline</h2>
+        <p class="view-desc">Your top artists' listening share over time</p>
+        <svg id="timeline-svg"></svg>
+        <div id="timeline-tooltip" class="hidden"></div>
+      </div>
+
+      <!-- Mood map view -->
+      <div id="view-mood" class="view">
+        <h2>Mood Landscape</h2>
+        <p class="view-desc">Where you live emotionally in music</p>
+        <svg id="mood-svg"></svg>
+        <div id="mood-tooltip" class="hidden"></div>
+      </div>
+
+      <!-- Taste DNA view -->
+      <div id="view-dna" class="view">
+        <h2>Taste DNA</h2>
+        <p class="view-desc">Your audio fingerprint — short term vs long term</p>
+        <svg id="dna-svg"></svg>
+        <div id="taste-summary"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
