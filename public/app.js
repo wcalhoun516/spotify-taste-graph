@@ -392,10 +392,21 @@ function highlightConnections(d, edges, nodeSelection, linkSelection) {
 // -------------------------------------------------------------------------
 async function loadAndRenderTimeline() {
   historyData = await fetch("/api/history").then(r => r.json());
-  if (!historyData || historyData.length === 0) {
-    d3.select("#timeline-svg").append("text")
-      .attr("x", 200).attr("y", 100)
-      .attr("fill", "#888").text("Need more snapshots to show timeline (check back tomorrow)");
+  if (!historyData || historyData.length < 2) {
+    const svg = d3.select("#timeline-svg");
+    svg.selectAll("*").remove();
+    svg.append("text")
+      .attr("x", 40).attr("y", 60)
+      .attr("fill", "#888").attr("font-size", "15px")
+      .text("Waiting for more snapshots to build your timeline...");
+    svg.append("text")
+      .attr("x", 40).attr("y", 88)
+      .attr("fill", "#555").attr("font-size", "13px")
+      .text(`You have ${historyData ? historyData.length : 0} snapshot(s). The streamgraph needs at least 2 daily snapshots.`);
+    svg.append("text")
+      .attr("x", 40).attr("y", 112)
+      .attr("fill", "#555").attr("font-size", "13px")
+      .text("The app saves a new snapshot every 24 hours — check back tomorrow!");
     return;
   }
   renderTimeline();
